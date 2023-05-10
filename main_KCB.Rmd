@@ -1,0 +1,101 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# 1. Packages
+```{r}
+library(tidyverse)
+library(sf)
+```
+
+# 2. data
+```{r}
+dt_sales_GWG <- 
+  read_delim("./data/KCB/KCB_TYP2_STAT_04.txt",
+             delim = "|", locale = locale("ko", encoding = "UTF-16"))
+dt_cust_GWG <- 
+  read_delim("./data/KCB/KCB_TYP1_STAT_04.txt",
+             delim = "|", locale = locale("ko", encoding = "UTF-16"))
+dt_cust_move_work <- 
+  read_delim("./data/KCB/KCB_MOVE_TYP3_ADM_STAT_04.txt",
+             delim = "|", locale = locale("ko", encoding = "UTF-16"))
+dt_sales_cd10 <-
+  read_csv("./data/KCB/KCB_DWTECH_GW_S_ID_STAT.csv")
+```
+```{r}
+colnames_cust <- c(
+  "BS_YR_MON", "GRID_FLAG", "GRID_ID", "AGE_CD", "JOB_CD", "amt_pop", "male_pop",
+  "female_pop", "mean_dist_work", "mean_income_monthly", "mid_income_monthly",
+  "pop_own_house", "mean_asset_house", "pop_creditcard", "mean_use_card",
+  "mean_use_credit", "mean_use_creditcard", "mean_use_check", "cnt_over_short",
+  "cnt_over_long", "cnt_loan_credit", "cnt_loan_house", "mean_loan_credit",
+  "mean_loan_house", "cnt_new_loan", "cnt_new_loan_credit", "cnt_new_loan_house",
+  "score"
+  )
+colnames(dt_cust_GWG) <- colnames_cust
+
+colnames_sales_kcb <- c(
+  "BS_YR_MON", "GRID_FLAG", "GRID_ID", "cd_KSIC_L1", "nm_KSIC_L1",
+  "cnt_shop_op", "cnt_shop_cls", "cnt_shop_op_1yr", "cnt_shop_cls_1yr",
+  "cnt_shop_op_3yr", "cnt_shop_cls_3yr", "mean_emp", "mean_op",
+  "amt_sales", "mean_sales_yr", "mean_rtsales_yr"
+  )
+colnames(dt_sales_GWG) <- colnames_sales_kcb
+
+
+```
+
+```{r}
+GRID_GWG <- read_sf("./data/shp_gid/nlsp_021001001.shx")
+GRID_GWG <-
+  GRID_GWG |> 
+  select(gid, geometry) |> 
+  rename(GRID_ID = gid)
+```
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
