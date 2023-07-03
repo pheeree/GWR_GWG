@@ -1,0 +1,1358 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# 0. packages
+```{r}
+library(tidyverse)
+library(sf)
+library(fpp3)
+library(psych)
+```
+
+
+```{r}
+dt_sales_GWG |> 
+  mutate(YYYY = str_sub(BS_YR_MON, 1, 4)) |>
+  filter(GRID_FLAG == "3") |> 
+  group_by(YYYY, nm_KSIC_L1) |> 
+  summarise(amt_sales = sum(amt_sales),
+            cnt_shop  = sum(cnt_shop_op))
+
+dt_sales_GWG |> 
+  mutate(YYYY = str_sub(BS_YR_MON, 1, 4)) |>
+  filter(GRID_FLAG == "3") |> 
+  group_by(nm_KSIC_L1) |> 
+  summarise(amt_sales = sum(amt_sales),
+            cnt_shop  = sum(cnt_shop_op))
+```
+3대 업종 : 도매 및 소매업(45~47), 숙박 및 음식점업(55~56), 보건업 및 사회복지 서비스업(86~87)
+
+```{r}
+dt_sales_GWG |> 
+  mutate(YYYY = str_sub(BS_YR_MON, 1, 4)) |>
+  filter(GRID_FLAG == "3") |> 
+  group_by(BS_YR_MON) |> 
+  summarise(amt_sales = sum(amt_sales)) |> 
+  mutate(BS_YR_MON = yearmonth(paste(str_sub(BS_YR_MON, 1, 4), "_", str_sub(BS_YR_MON, 5, 6)))) |> 
+  ggplot(aes(x = BS_YR_MON, y = amt_sales)) +
+  geom_point() +
+  geom_line()
+              
+```
+```{r}
+main_KSIC <- c("도매 및 소매업(45~47)", "숙박 및 음식점업(55~56)", "보건업 및 사회복지 서비스업(86~87)")
+
+dt_sales_GWG |> 
+  filter(nm_KSIC_L1 %in% main_KSIC) |> 
+  mutate(YYYY = str_sub(BS_YR_MON, 1, 4)) |>
+  filter(GRID_FLAG == "3") |> 
+  group_by(BS_YR_MON) |> 
+  summarise(amt_sales = sum(amt_sales)) |> 
+  mutate(BS_YR_MON = yearmonth(paste(str_sub(BS_YR_MON, 1, 4), "_", str_sub(BS_YR_MON, 5, 6)))) |> 
+  ggplot(aes(x = BS_YR_MON, y = amt_sales)) +
+  geom_point() +
+  geom_line()
+              
+```
+
+```{r}
+dt_sales_GWG
+```
+
+```{r}
+dt_sales_w_gid <-
+dt_sales_GWG |> 
+  select(BS_YR_MON, GRID_FLAG, GRID_ID, cd_KSIC_L1, amt_sales) |> 
+  filter(GRID_FLAG == "0") |> 
+  pivot_wider(names_from = cd_KSIC_L1,
+              names_glue = "{cd_KSIC_L1}_sales",
+              values_from = amt_sales,
+              values_fill = 0)
+dt_shop_w_gid <-
+dt_sales_GWG |> 
+  select(BS_YR_MON, GRID_FLAG, GRID_ID, cd_KSIC_L1, cnt_shop_op, cnt_shop_cls) |> 
+  filter(GRID_FLAG == "0") |> 
+  pivot_wider(names_from = cd_KSIC_L1,
+              names_glue = "{cd_KSIC_L1}_{.value}",
+              values_from = c(cnt_shop_op, cnt_shop_cls),
+              values_fill = 0)
+dt_w_gid <-
+dt_sales_GWG |> 
+  filter(GRID_FLAG == "0") |> 
+  group_by(BS_YR_MON, GRID_ID) |> 
+  summarise(amt_sales = sum(amt_sales),
+            cnt_shop_op = sum(cnt_shop_op),
+            cnt_shop_cls = sum(cnt_shop_cls),
+            cnt_shop_op_1yr = sum(cnt_shop_op_1yr),
+            cnt_shop_cls_1yr = sum(cnt_shop_cls_1yr),
+            cnt_shop_op_3yr = sum(cnt_shop_op_3yr),
+            cnt_shop_cls_3yr = sum(cnt_shop_cls_3yr),
+            mean_emp = mean(mean_emp),
+            mean_op = mean(mean_emp),
+            amt_sales = sum(amt_sales)
+            )
+```
+
+```{r}
+dt_sales_w_gid <- inner_join(dt_w_gid, dt_sales_w_gid, by = c("BS_YR_MON", "GRID_ID"))
+dt_sales_w_gid <- inner_join(dt_sales_w_gid, dt_shop_w_gid, by = c("BS_YR_MON", "GRID_ID"))
+dt_sales_w_gid
+```
+```{r}
+dt_cust_GID <-
+  dt_cust_GWG |> 
+  filter(GRID_FLAG == "0") |> 
+  group_by(BS_YR_MON, GRID_ID) |> 
+  summarise(AGE_CD              = sum(AGE_CD * amt_pop) / sum(amt_pop),
+            amt_pop             = sum(amt_pop),
+            mean_dist_work      = mean(mean_dist_work),
+            mean_income_monthly = mean(mean_income_monthly),
+            pop_own_house       = sum(pop_own_house),
+            mean_asset_house    = mean(mean_asset_house),
+            pop_creditcard      = sum(pop_creditcard),
+            mean_use_card       = mean(mean_use_card),
+            mean_use_credit     = mean(mean_use_credit),
+            mean_use_creditcard = mean(mean_use_creditcard),
+            mean_use_check      = mean(mean_use_check),
+            cnt_over_short      = sum(cnt_over_short),
+            cnt_over_long       = sum(cnt_over_long),
+            cnt_loan_credit     = sum(cnt_loan_credit),
+            cnt_loan_house      = sum(cnt_loan_house),
+            mean_loan_credit    = mean(mean_loan_credit),
+            mean_loan_house     = mean(mean_loan_house),
+            cnt_new_loan        = sum(cnt_new_loan),
+            cnt_new_loan_credit = sum(cnt_new_loan_credit),
+            cnt_new_loan_house  = sum(cnt_new_loan_house),
+            score               = mean(score)
+            )
+dt_cust_GID
+```
+```{r}
+dt_cust_GID_job <-
+  dt_cust_GWG |> 
+  filter(GRID_FLAG == "0") |> 
+  group_by(BS_YR_MON, GRID_ID, JOB_CD) |> 
+  summarise(amt_pop = sum(amt_pop)) |> 
+  pivot_wider(names_from = JOB_CD,
+              names_glue = "amt_pop_{JOB_CD}",
+              values_from = amt_pop,
+              values_fill = 0)
+
+dt_cust_GID_job <-
+dt_cust_GID_job |> 
+  rename(amt_pop_emp = amt_pop_1,
+         amt_pop_busi = `amt_pop_2 `,
+         amt_pop_etc = amt_pop_3)
+
+dt_cust_GID_job
+```
+```{r}
+dt_cust_GID <- inner_join(dt_cust_GID, dt_cust_GID_job)
+```
+
+```{r}
+setdiff(unique(dt_cust_GID$GRID_ID),unique(dt_sales_w_gid$GRID_ID))
+setdiff(dt_sales_w_gid$BS_YR_MON, dt_cust_GID$BS_YR_MON)
+```
+```{r}
+ls_sales_gid <- unique(dt_sales_w_gid$GRID_ID)
+ls_cust_gid  <- unique(dt_cust_GID$GRID_ID)
+```
+
+
+## 
+```{r}
+GRID_GWG
+```
+```{r}
+dt_train_sales
+```
+
+```{r}
+dt_train_sales <- left_join(dt_cust_GID, dt_sales_w_gid)
+dt_train_sales <-
+dt_train_sales |> 
+  mutate_at(c(21:64), ~ replace_na(., 0))
+dt_train_sales <- inner_join(dt_train_sales, GRID_GWG)
+```
+## generating rt_var
+```{r}
+dt_train_sales <-
+dt_train_sales |> 
+  mutate(
+    rt_pop_own_house = pop_own_house / amt_pop,
+    rt_pop_creditcard = pop_creditcard / amt_pop,
+    rt_over_short = cnt_over_short / amt_pop,
+    rt_over_long = cnt_over_long / amt_pop,
+    rt_loan_credit = cnt_loan_credit / amt_pop,
+    rt_loan_house = cnt_loan_house / amt_pop,
+    rt_new_loan = cnt_new_loan / amt_pop,
+    rt_new_loan_credit = cnt_new_loan_credit / amt_pop,
+    rt_new_loan_house = cnt_new_loan_house / amt_pop
+  )
+```
+
+
+
+# PCA
+##. packages for PCA
+```{r}
+library(psych)
+```
+```{r}
+dt_train_sales
+```
+
+##
+```{r}
+unique(dt_train_sales$BS_YR_MON)
+```
+```{r}
+write.csv(dt_train_sales, "dt_train_sales.csv")
+```
+
+```{r}
+dt_salees_PCA <- dt_train_sales[ ,c(3:26, 28:35, 66:73)]
+
+dt_salees_PCA <- 
+  dt_salees_PCA |> 
+  st_drop_geometry()
+class(dt_salees_PCA)
+```
+
+```{r}
+vec_eigen <- eigen(cor(dt_salees_PCA))
+plot(vec_eigen$value, type = "o")
+```
+```{r}
+PCA_sales <- principal(dt_salees_PCA, nfactors = 5, rotate = "varimax") 
+PCA_sales$loadings
+```
+```{r}
+dt_train_sales
+```
+
+## feature with PCA 5 factors
+```{r}
+dt_train_sales_PCA <-
+dt_train_sales |> 
+  mutate(
+    RC1_income_use = 
+      mean_income_monthly * PCA_sales$loadings[,1][4] +
+      pop_own_house * PCA_sales$loadings[,1][5] +
+      mean_asset_house * PCA_sales$loadings[,1][6] +
+      mean_use_card * PCA_sales$loadings[,1][8] +
+      mean_use_credit * PCA_sales$loadings[,1][9] +
+      mean_use_creditcard * PCA_sales$loadings[,1][10] +
+      mean_loan_credit * PCA_sales$loadings[,1][16] +
+      mean_loan_house * PCA_sales$loadings[,1][17] +
+      score * PCA_sales$loadings[,1][21] +
+      rt_pop_own_house * PCA_sales$loadings[,1][33] +
+      rt_pop_creditcard * PCA_sales$loadings[,1][34] +
+      rt_loan_credit * PCA_sales$loadings[,1][37] +
+      rt_loan_house * PCA_sales$loadings[,1][38],
+    RC2_pop_credit = 
+      amt_pop * PCA_sales$loadings[,2][2] +
+      pop_creditcard * PCA_sales$loadings[,2][7] +
+      cnt_over_short * PCA_sales$loadings[,2][12] +
+      cnt_over_long * PCA_sales$loadings[,2][13] +
+      cnt_loan_credit * PCA_sales$loadings[,2][14] +
+      cnt_loan_house * PCA_sales$loadings[,2][15] +
+      cnt_new_loan * PCA_sales$loadings[,2][18] +
+      cnt_new_loan_credit * PCA_sales$loadings[,2][19] +
+      amt_pop_emp * PCA_sales$loadings[,2][22] +
+      amt_pop_busi * PCA_sales$loadings[,2][23] +
+      amt_pop_etc * PCA_sales$loadings[,2][24],
+    RC3_op_shop = 
+      cnt_shop_op * PCA_sales$loadings[,3][25] +
+      cnt_shop_op_1yr * PCA_sales$loadings[,3][27] +
+      cnt_shop_op_3yr * PCA_sales$loadings[,3][29] +
+      mean_emp * PCA_sales$loadings[,3][31] +
+      mean_op * PCA_sales$loadings[,3][32],
+    RC4_rt_loan_risk = 
+      mean_use_check * PCA_sales$loadings[,4][11] +
+      rt_over_short * PCA_sales$loadings[,4][35] +
+      rt_over_long * PCA_sales$loadings[,4][36] +
+      rt_new_loan *  PCA_sales$loadings[,4][39] +
+      rt_new_loan_credit * PCA_sales$loadings[,4][40],
+    RC5_cls_shop = 
+      cnt_shop_cls * PCA_sales$loadings[,5][26] +
+      cnt_shop_cls_1yr * PCA_sales$loadings[,5][28] +
+      cnt_shop_cls_3yr * PCA_sales$loadings[,5][30]
+  ) |> 
+  select(BS_YR_MON, GRID_ID, AGE_CD, mean_dist_work, cnt_new_loan_house, rt_new_loan_house,
+         RC1_income_use, RC2_pop_credit, RC3_op_shop, RC4_rt_loan_risk, RC5_cls_shop,
+         amt_sales, geometry)
+```
+
+```{r}
+dt_train_sales_PCA
+```
+
+
+
+#. Spatial Cluster Analysis
+공간 군집 분석(Spatial Cluster Analysis)은 공간 데이터의 분포와 패턴을 분석하여, 유사한 특성을 갖는 영역이나 객체를 그룹화하는 기법입니다. 이 방법은 공간 데이터에 내재된 지리적 패턴과 상관관계를 이해하는 데 도움이 되며, 의사결정과 계획에 활용될 수 있습니다.
+
+공간 군집 분석에는 여러 가지 접근 방식이 있습니다. 대표적인 공간 군집 분석 방법은 다음과 같습니다.
+
+1. 공간 자기상관 분석 (Spatial Autocorrelation Analysis): 이 방법은 데이터의 공간적 자기상관을 분석하여, 공간적 클러스터링 특성을 평가합니다. 대표적인 지표로는 Moran's I와 Getis-Ord G가 있습니다.
+
+2. 지역적 지표(Local Indicators of Spatial Association, LISA): LISA는 전역 지표와 달리, 각 관측치의 지역적 클러스터링 특성을 평가합니다. 이를 통해 핫스팟, 콜드스팟 등 공간적 특성을 갖는 영역을 식별할 수 있습니다.
+
+3. DBSCAN (Density-Based Spatial Clustering of Applications with Noise): 이 방법은 밀도 기반의 군집화 방법으로, 공간적 밀도가 높은 영역을 클러스터로 간주합니다. 이 방법은 임의의 모양의 클러스터를 탐지할 수 있으며, 노이즈를 처리하는 데 강건합니다.
+
+4. K-means와 같은 전통적인 군집화 알고리즘을 확장하여 공간 정보를 고려하는 방법도 있습니다. 이 경우, 공간적 거리를 기반으로 클러스터를 생성합니다.
+
+공간 군집 분석의 목적은 다양하며, 지리 정보 시스템(GIS), 공공보건, 경제학, 도시 계획 등 여러 분야에서 활용됩니다. 예를 들어, 범죄 발생 지역, 전염병 확산 영역, 주택 가격 분포와 같은 공간 패턴을 분석하는 데 사용할 수 있습니다.
+```{r}
+dt_sales_GWG |> 
+  group_by(cd_KSIC_L1, nm_KSIC_L1) |> 
+  summarise(amt_sales = sum(amt_sales))
+```
+```{r}
+dt_LISA_GWG <-
+dt_train_sales |> 
+  filter(BS_YR_MON == "202301") |> 
+  select(BS_YR_MON, GRID_ID, amt_pop, mean_income_monthly, pop_own_house,
+         mean_use_card, amt_sales, G_sales, I_sales, S_sales,  geometry)
+```
+
+```{r}
+dt_train_sales |> 
+  filter(BS_YR_MON == "202301") |> 
+  ggplot() +
+  geom_sf(aes(geometry = geometry, fill = amt_sales)) +
+  scale_fill_gradient2(low = "white", high = "red") +
+  ggtitle("amt_sales") +
+  theme_light()
+
+dt_train_sales |> 
+  filter(BS_YR_MON == "202301") |> 
+  ggplot() +
+  geom_sf(aes(geometry = geometry, fill = G_sales)) +
+  scale_fill_gradient2(low = "white", high = "red") +
+  ggtitle("도매 및 소매업") +
+  theme_light()
+
+dt_train_sales |> 
+  filter(BS_YR_MON == "202301") |> 
+  ggplot() +
+  geom_sf(aes(geometry = geometry, fill = I_sales)) +
+  scale_fill_gradient2(low = "white", high = "red") +
+  ggtitle("숙박 및 음식점업") +
+  theme_light()
+
+dt_train_sales |> 
+  filter(BS_YR_MON == "202301") |> 
+  ggplot() +
+  geom_sf(aes(geometry = geometry, fill = Q_sales)) +
+  scale_fill_gradient2(low = "white", high = "red") +
+  ggtitle("보건업 및 사회복지 서비스업") +
+  theme_light()
+```
+# GWR
+```{r}
+GRID_GWG <-
+  GRID_GWG |> 
+  mutate(centeroid = st_centroid(geometry))
+
+GRID_GWG_coord <- as.tibble(st_coordinates(GRID_GWG$centeroid))
+GRID_GWG_coord
+
+GRID_GWG <- bind_cols(GRID_GWG, GRID_GWG_coord)
+coord_GWG <- 
+  GRID_GWG |> 
+  select(GRID_ID, X, Y) 
+```
+
+```{r}
+library(spgwr)
+```
+## data
+```{r}
+dt_train_sales_PCA
+```
+```{r}
+dt_train_sales_PCA |> 
+  mutate(YYYY = str_sub(BS_YR_MON, 1, 4)) |>
+  group_by(BS_YR_MON) |> 
+  summarise(amt_sales = sum(amt_sales)) |> 
+  mutate(BS_YR_MON = yearmonth(paste(str_sub(BS_YR_MON, 1, 4), "_", str_sub(BS_YR_MON, 5, 6)))) |> 
+  ggplot(aes(x = BS_YR_MON, y = amt_sales)) +
+  geom_point() +
+  geom_line()
+              
+```
+코로나 미 발생 시기는 2019.01~2019.12, 2022.02~2023.01
+
+```{r}
+
+
+YYYYMM_normal <- c("201901", "201902", "201903", "201904", "201905", "201906", "201907",
+                   "201908", "201909", "201910", "201911", "201912", "202202", "202203",
+                   "202204", "202205", "202206", "202207", "202208", "202209", "202210",
+                   "202211", "202212", "202301")
+
+dt_train_sales_PCA_norm <-
+dt_train_sales_PCA |> 
+  filter(BS_YR_MON %in% YYYYMM_normal)
+dt_train_sales_PCA_norm <-
+dt_train_sales_PCA_norm |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales))
+dt_train_sales_PCA_norm <- inner_join(dt_train_sales_PCA_norm, GRID_GWG)
+```
+## time & GEO frame
+```{r}
+GRID_GWR <- as.tibble(unique(dt_train_sales_PCA$GRID_ID))
+
+YYYYMM_GWR <- as.tibble(as.character(unique(dt_train_sales_PCA$BS_YR_MON)))
+temp <- GRID_GWR
+temp_time <- YYYYMM_GWR
+for( i in 1:(length(unique(dt_train_sales_PCA$BS_YR_MON))-1)){
+  temp <- bind_rows(temp, GRID_GWR)
+}
+
+for( i in 1:(length(unique(dt_train_sales_PCA$GRID_ID))-1)){
+  temp_time <- bind_rows(temp_time, YYYYMM_GWR)
+}
+GRID_GWR <- temp
+YYYYMM_GWR <- temp_time
+
+FRANE_timeGEO <- bind_cols(YYYYMM_GWR, GRID_GWR)
+colnames(FRANE_timeGEO) <- c("BS_YR_MON", "GRID_ID")
+```
+
+```{r}
+dt_train_sales_PCA <- 
+  dt_train_sales_PCA |> 
+  mutate(BS_YR_MON = as.character(BS_YR_MON))
+x <- left_join(FRANE_timeGEO, dt_train_sales_PCA)
+dt_train_sales_GWR <-
+x |> 
+  mutate_if(is.numeric, ~replace_na(., 0))
+```
+
+##업종별 매출 추가함
+```{r}
+
+```
+
+
+```{r}
+YYYYMM_normal <- c("201901", "201902", "201903", "201904", "201905", "201906", "201907",
+                   "201908", "201909", "201910", "201911", "201912", "202202", "202203",
+                   "202204", "202205", "202206", "202207", "202208", "202209", "202210",
+                   "202211", "202212", "202301")
+
+dt_train_sales_PCA_norm <-
+dt_train_sales_GWR |> 
+  filter(BS_YR_MON %in% YYYYMM_normal)
+dt_train_sales_PCA_norm <-
+dt_train_sales_PCA_norm |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales))
+dt_train_sales_PCA_norm <- inner_join(dt_train_sales_PCA_norm, GRID_GWG)
+```
+```{r}
+YYYYMM_covid <- c("202001", "202002", "202003", "202004", "202005", "202006", "202007",
+                  "202008", "202009", "202010", "202011", "202012", "202101", "202102",
+                  "202103", "202104", "202105", "202106", "202107", "202108", "202109",
+                  "202110", "202111", "202112", "202201")
+
+dt_test_sales_PCA_norm <-
+dt_train_sales_GWR |> 
+  filter(BS_YR_MON %in% YYYYMM_covid) |>
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales))
+dt_test_sales_PCA_norm <- inner_join(dt_test_sales_PCA_norm, GRID_GWG)
+```
+
+
+```{r warning = FALSE}
+coord <- st_coordinates(st_centroid(dt_train_sales_PCA_norm$geometry))
+formula_gwr <- amt_sales ~ AGE_CD + mean_dist_work + RC1_income_use + RC2_pop_credit + RC3_op_shop +
+                        RC4_rt_loan_risk + RC5_cls_shop
+
+gwr_model <- ggwr.sel(formula_gwr,
+                      data = dt_train_sales_PCA_norm,
+                      coords = coord)
+```
+
+
+```{r}
+best_bandwidth <- gwr_model
+
+gwr_GWG <- gwr(formula_gwr,
+               data = dt_train_sales_PCA_norm,
+               coords = coord,
+               bandwidth = best_bandwidth,
+               predictions = TRUE,
+               hatmatrix = TRUE
+               )
+gwr_GWG
+```
+
+```{r}
+dt_train_sales_PCA_norm
+```
+
+```{r}
+P_gwr <- gwr(formula_gwr,
+             data = dt_train_sales_PCA_norm,
+             coords = coord,
+             bandwidth = best_bandwidth,
+             predictions = TRUE,
+             fit.points = dt_test_sales_PCA_norm)
+```
+
+```{r}
+as.data.frame(matrix(unlist(x),ncol = 6))
+```
+
+
+
+```{r}
+library(GWmodel) 
+```
+
+```{r}
+dt_train_sales_PCA_norm <- st_as_sf(dt_train_sales_PCA_norm)
+dt_train_sales_PCA_sp <- as(dt_train_sales_PCA_norm, Class = "Spatial")
+
+```
+
+```{r}
+formula_gwr <- amt_sales ~ AGE_CD + mean_dist_work + RC1_income_use + RC2_pop_credit + RC3_op_shop +
+                        RC4_rt_loan_risk + RC5_cls_shop
+
+gwr_model2 <- bw.gwr(formula_gwr,
+                      data = dt_train_sales_PCA_sp,
+                      approach = "AIC",
+                      adaptive = T,)
+```
+```{r}
+gwr_model2
+```
+```{r}
+gwr_GWG2 <-gwr.basic(formula_gwr, 
+                     adaptive = T,
+                     data = dt_train_sales_PCA_sp,
+                     bw = gwr_model2)
+gwr_GWG2
+```
+
+```{r}
+dt_test_sales_PCA_norm_sp <- st_as_sf(dt_test_sales_PCA_norm)
+dt_test_sales_PCA_norm_sp <- as(dt_test_sales_PCA_norm_sp, Class = "Spatial")
+gwr_pred <- gwr.predict(formula_gwr, 
+                     adaptive = T,
+                     data = dt_train_sales_PCA_sp,
+                     predictdata = dt_test_sales_PCA_norm_sp,
+                     bw = gwr_model2)
+gwr_pred
+```
+
+```{r}
+dt_pred_GWR <- bind_cols(dt_test_sales_PCA_norm, as.data.frame(gwr_pred$SDF))
+dt_pred_GWR |> 
+  select(GRID_ID, amt_sales, prediction, prediction_var)
+```
+```{r}
+YYYYMM_covid <- c("202001", "202002", "202003", "202004", "202005", "202006", "202007",
+                  "202008", "202009", "202010", "202011", "202012", "202101", "202102",
+                  "202103", "202104", "202105", "202106", "202107", "202108", "202109",
+                  "202110", "202111", "202112", "202201")
+
+dt_test_sales_ALL <-
+dt_train_sales_GWR |> 
+  filter(BS_YR_MON %in% YYYYMM_covid) |>
+  select(BS_YR_MON, GRID_ID, AGE_CD, mean_dist_work, RC1_income_use, RC2_pop_credit,
+         RC3_op_shop, RC4_rt_loan_risk, RC5_cls_shop, amt_sales)
+
+dt_test_sales_ALL <- inner_join(dt_test_sales_ALL, GRID_GWG)
+
+dt_test_sales_ALL_sp <- st_as_sf(dt_test_sales_ALL)
+
+
+dt_test_GWR_202001 <-
+  dt_test_sales_ALL_sp |> 
+  filter(BS_YR_MON %in% c("202001", "202002", "202003")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q1") |> 
+  as(Class = "Spatial")
+
+dt_test_GWR_202002 <-
+  dt_test_sales_ALL_sp |> 
+  filter(BS_YR_MON %in% c("202004", "202005", "202006")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q2") |> 
+  as(Class = "Spatial")
+
+dt_test_GWR_202003 <-
+  dt_test_sales_ALL_sp |> 
+  filter(BS_YR_MON %in% c("202007", "202008", "202009")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q3") |> 
+  as(Class = "Spatial")
+
+dt_test_GWR_202004 <-
+  dt_test_sales_ALL_sp |> 
+  filter(BS_YR_MON %in% c("202010", "202011", "202012")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q4") |> 
+  as(Class = "Spatial")
+
+dt_test_GWR_202101 <-
+  dt_test_sales_ALL_sp |> 
+  filter(BS_YR_MON %in% c("202101", "202102", "202103")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q1") |> 
+  as(Class = "Spatial")
+
+dt_test_GWR_202102 <-
+  dt_test_sales_ALL_sp |> 
+  filter(BS_YR_MON %in% c("202104", "202105", "202106")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q2") |> 
+  as(Class = "Spatial")
+
+dt_test_GWR_202103 <-
+  dt_test_sales_ALL_sp |> 
+  filter(BS_YR_MON %in% c("202107", "202108", "202109")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q3") |> 
+  as(Class = "Spatial")
+
+dt_test_GWR_202104 <-
+  dt_test_sales_ALL_sp |> 
+  filter(BS_YR_MON %in% c("202110", "202111", "202112")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q4") |> 
+  as(Class = "Spatial")
+```
+
+```{r}
+gwr_pred_202001 <- gwr.predict(formula_gwr, 
+                     adaptive = T,
+                     data = dt_train_sales_PCA_sp,
+                     predictdata = dt_test_GWR_202001,
+                     bw = gwr_model2)
+gwr_pred_202002 <- gwr.predict(formula_gwr, 
+                     adaptive = T,
+                     data = dt_train_sales_PCA_sp,
+                     predictdata = dt_test_GWR_202002,
+                     bw = gwr_model2)
+gwr_pred_202003 <- gwr.predict(formula_gwr, 
+                     adaptive = T,
+                     data = dt_train_sales_PCA_sp,
+                     predictdata = dt_test_GWR_202003,
+                     bw = gwr_model2)
+gwr_pred_202004 <- gwr.predict(formula_gwr, 
+                     adaptive = T,
+                     data = dt_train_sales_PCA_sp,
+                     predictdata = dt_test_GWR_202004,
+                     bw = gwr_model2)
+gwr_pred_202101 <- gwr.predict(formula_gwr, 
+                     adaptive = T,
+                     data = dt_train_sales_PCA_sp,
+                     predictdata = dt_test_GWR_202101,
+                     bw = gwr_model2)
+gwr_pred_202102 <- gwr.predict(formula_gwr, 
+                     adaptive = T,
+                     data = dt_train_sales_PCA_sp,
+                     predictdata = dt_test_GWR_202102,
+                     bw = gwr_model2)
+gwr_pred_202103 <- gwr.predict(formula_gwr, 
+                     adaptive = T,
+                     data = dt_train_sales_PCA_sp,
+                     predictdata = dt_test_GWR_202103,
+                     bw = gwr_model2)
+gwr_pred_202104 <- gwr.predict(formula_gwr, 
+                     adaptive = T,
+                     data = dt_train_sales_PCA_sp,
+                     predictdata = dt_test_GWR_202104,
+                     bw = gwr_model2)
+```
+
+```{r}
+dt_test_sales_ALL <- inner_join(dt_test_sales_ALL, )
+dt_test_sales_ALL |>
+  filter(BS_YR_MON %in% c("202001", "202002", "202003")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q1") |> 
+  bind_cols(as.data.frame(gwr_pred_202001$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202001$SDF$prediction') |> 
+  select(c(10, 1:9, 11)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5)) %>%
+  write.csv(., "./data/gwr_pred_202001.csv")
+
+dt_test_sales_ALL |>
+  filter(BS_YR_MON %in% c("202004", "202005", "202006")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q2") |> 
+  bind_cols(as.data.frame(gwr_pred_202002$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202002$SDF$prediction') |> 
+  select(c(10, 1:9, 11)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5)) %>%
+  write.csv(., "./data/gwr_pred_202002.csv")
+
+dt_test_sales_ALL |>
+  filter(BS_YR_MON %in% c("202007", "202008", "202009")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q3") |> 
+  bind_cols(as.data.frame(gwr_pred_202003$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202003$SDF$prediction') |> 
+  select(c(10, 1:9, 11)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5)) %>%
+  write.csv(., "./data/gwr_pred_202003.csv")
+
+dt_test_sales_ALL |>
+  filter(BS_YR_MON %in% c("202010", "202011", "202012")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q4") |> 
+  bind_cols(as.data.frame(gwr_pred_202004$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202004$SDF$prediction') |> 
+  select(c(10, 1:9, 11)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5)) %>%
+  write.csv(., "./data/gwr_pred_202004.csv")
+
+dt_test_sales_ALL |>
+  filter(BS_YR_MON %in% c("202101", "202102", "202103")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q1") |> 
+  bind_cols(as.data.frame(gwr_pred_202101$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202101$SDF$prediction') |> 
+  select(c(10, 1:9, 11)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5)) %>%
+  write.csv(., "./data/gwr_pred_202101.csv")
+
+dt_test_sales_ALL |>
+  filter(BS_YR_MON %in% c("202104", "202105", "202106")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q2") |> 
+  bind_cols(as.data.frame(gwr_pred_202102$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202102$SDF$prediction') |> 
+  select(c(10, 1:9, 11)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5)) %>%
+  write.csv(., "./data/gwr_pred_202102.csv")
+
+dt_test_sales_ALL |>
+  filter(BS_YR_MON %in% c("202107", "202108", "202109")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q3") |> 
+  bind_cols(as.data.frame(gwr_pred_202103$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202103$SDF$prediction') |> 
+  select(c(10, 1:9, 11)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5)) %>%
+  write.csv(., "./data/gwr_pred_202103.csv")
+
+dt_test_sales_ALL |>
+  filter(BS_YR_MON %in% c("202110", "202111", "202112")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q4") |> 
+  bind_cols(as.data.frame(gwr_pred_202104$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202104$SDF$prediction') |> 
+  select(c(10, 1:9, 11)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5)) %>%
+  write.csv(., "./data/gwr_pred_202104.csv")
+```
+```{r}
+gwr_pred_202001$SDF$prediction
+```
+
+```{r}
+dt_test_sales_ALL_shop <- left_join(dt_test_sales_ALL, 
+                                    dt_train_sales |> 
+                                      select(BS_YR_MON, GRID_ID, cnt_shop_op) |> 
+                                      mutate(BS_YR_MON = as.character(BS_YR_MON)))
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202001", "202002", "202003")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q1") |> 
+  bind_cols(as.data.frame(gwr_pred_202001$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202001$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) %>%
+  write.csv(., "./data/gwr_pred_202001.csv")
+
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202004", "202005", "202006")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q2") |> 
+  bind_cols(as.data.frame(gwr_pred_202002$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202002$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) %>%
+  write.csv(., "./data/gwr_pred_202002.csv")
+
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202007", "202008", "202009")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q3") |> 
+  bind_cols(as.data.frame(gwr_pred_202003$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202003$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) %>%
+  write.csv(., "./data/gwr_pred_202003.csv")
+
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202010", "202011", "202012")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q4") |> 
+  bind_cols(as.data.frame(gwr_pred_202004$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202004$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) %>%
+  write.csv(., "./data/gwr_pred_202004.csv")
+
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202101", "202102", "202103")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q1") |> 
+  bind_cols(as.data.frame(gwr_pred_202101$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202101$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) %>%
+  write.csv(., "./data/gwr_pred_202101.csv")
+
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202104", "202105", "202106")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q2") |> 
+  bind_cols(as.data.frame(gwr_pred_202102$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202102$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) %>%
+  write.csv(., "./data/gwr_pred_202102.csv")
+
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202107", "202108", "202109")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q3") |> 
+  bind_cols(as.data.frame(gwr_pred_202103$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202103$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) %>%
+  write.csv(., "./data/gwr_pred_202103.csv")
+
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202110", "202111", "202112")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q4") |> 
+  bind_cols(as.data.frame(gwr_pred_202104$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202104$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) %>%
+  write.csv(., "./data/gwr_pred_202104.csv")
+```
+
+```{r}
+dt_gwr_pred_202001 <-
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202001", "202002", "202003")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q1") |> 
+  bind_cols(as.data.frame(gwr_pred_202001$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202001$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) 
+
+dt_gwr_pred_202002 <-
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202004", "202005", "202006")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q2") |> 
+  bind_cols(as.data.frame(gwr_pred_202002$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202002$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) 
+
+dt_gwr_pred_202003 <-
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202007", "202008", "202009")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q3") |> 
+  bind_cols(as.data.frame(gwr_pred_202003$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202003$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) 
+
+dt_gwr_pred_202004 <-
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202010", "202011", "202012")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2020-Q4") |> 
+  bind_cols(as.data.frame(gwr_pred_202004$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202004$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) 
+
+dt_gwr_pred_202101 <-
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202101", "202102", "202103")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q1") |> 
+  bind_cols(as.data.frame(gwr_pred_202101$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202101$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) 
+
+dt_gwr_pred_202102 <-
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202104", "202105", "202106")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q2") |> 
+  bind_cols(as.data.frame(gwr_pred_202102$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202102$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) 
+
+dt_gwr_pred_202103 <-
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202107", "202108", "202109")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q3") |> 
+  bind_cols(as.data.frame(gwr_pred_202103$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202103$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) 
+
+dt_gwr_pred_202104 <-
+dt_test_sales_ALL_shop |>
+  filter(BS_YR_MON %in% c("202110", "202111", "202112")) |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            cnt_shop = mean(cnt_shop_op),
+            amt_sales = mean(amt_sales)) |> 
+  mutate(YYYYQ4 = "2021-Q4") |> 
+  bind_cols(as.data.frame(gwr_pred_202104$SDF$prediction)) |> 
+  rename(prediction = 'gwr_pred_202104$SDF$prediction') |> 
+  select(c(10, 1:9, 11:12)) |> 
+  mutate(effect_sales = ifelse(amt_sales == 0, NA, amt_sales - prediction),
+         effect_5 = ntile(effect_sales, 5),
+         effect_sales_shop = ifelse(amt_sales == 0, NA, (amt_sales - prediction) / cnt_shop),
+         effect_shop_5 = ntile(effect_sales_shop, 5)) 
+
+
+```
+
+```{r}
+gwr_pred_all <- bind_rows(dt_gwr_pred_202001, dt_gwr_pred_202002, dt_gwr_pred_202003,
+                          dt_gwr_pred_202004, dt_gwr_pred_202101, dt_gwr_pred_202102,
+                          dt_gwr_pred_202103, dt_gwr_pred_202104)
+```
+```{r}
+gwr_pred_all |> 
+  mutate(effect_5_all = ntile(effect_sales, 5),
+         effect_shop_5_all = ntile(effect_sales_shop, 5),
+         effect_10_all = ntile(effect_sales, 10),
+         effect_shop_10_all = ntile(effect_sales_shop, 10)) %>%
+  write.csv(., "./data/gwr_pred_all.csv")
+```
+
+```{r}
+gwr_pred_all |> 
+  mutate(effect_5_all = ntile(effect_sales, 5),
+         effect_shop_5_all = ntile(effect_sales_shop, 5),
+         effect_10_all = ntile(effect_sales, 10),
+         effect_shop_10_all = ntile(effect_sales_shop, 10)) |> 
+  group_by(effect_10_all) |> 
+  summarise(max_effect = max(effect_sales),
+            min_effect = min(effect_sales),
+            mean_effect = mean(effect_sales),
+            mid_effect = median(effect_sales)) %>%
+  write.csv(., "./data/gwr_summary_ef10.csv")
+
+gwr_pred_all |> 
+  mutate(effect_5_all = ntile(effect_sales, 5),
+         effect_shop_5_all = ntile(effect_sales_shop, 5),
+         effect_10_all = ntile(effect_sales, 10),
+         effect_shop_10_all = ntile(effect_sales_shop, 10)) |> 
+  group_by(effect_shop_10_all) |> 
+  summarise(max_effect = max(effect_sales_shop),
+            min_effect = min(effect_sales_shop),
+            mean_effect = mean(effect_sales_shop),
+            mid_effect = median(effect_sales_shop)) %>%
+  write.csv(., "./data/gwr_summary_efshop10.csv")
+```
+
+## 
+```{r}
+YYYYMM_normal <- c("201901", "201902", "201903", "201904", "201905", "201906", "201907",
+                   "201908", "201909", "201910", "201911", "201912", "202202", "202203",
+                   "202204", "202205", "202206", "202207", "202208", "202209", "202210",
+                   "202211", "202212", "202301")
+
+dt_train_sales_PCA_norm <-
+dt_train_sales_GWR |> 
+  filter(BS_YR_MON %in% YYYYMM_normal)
+dt_train_sales_PCA_norm <-
+dt_train_sales_PCA_norm |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales))
+dt_train_sales_PCA_norm <- inner_join(dt_train_sales_PCA_norm, GRID_GWG)
+```
+
+```{r}
+dt_train_sales_GWR
+```
+
+
+
+
+
+
