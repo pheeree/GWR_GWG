@@ -1,0 +1,156 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+#0. packages
+```{r}
+library(tidyverse)
+library(sf)
+library(sp)
+library(GWmodel)
+```
+
+#1. data
+GWmodel의 데이터는 학습과 예측에 있어 같은 차원의 공간좌표를 가져야 한다.
+학습 데이터의 공간 좌표가 100개라면 예측 데이터에서 100개가 있어야 하는 것이다.
+따라서 표준화된 영역의 공간 단위를 기초로 각 데이터를 조작해야 한다. 
+사정에 따라 누락된 데이터가 있더라도 공간 좌표는 있어야 한다. 
+따라서 기준이 될 좌표를 미리 세팅한다.
+
+## time & GEO frame
+```{r}
+GRID_GWR <- as.tibble(unique(dt_train_sales_PCA$GRID_ID))
+
+YYYYMM_GWR <- as.tibble(as.character(unique(dt_train_sales_PCA$BS_YR_MON)))
+temp <- GRID_GWR
+temp_time <- YYYYMM_GWR
+for( i in 1:(length(unique(dt_train_sales_PCA$BS_YR_MON))-1)){
+  temp <- bind_rows(temp, GRID_GWR)
+}
+
+for( i in 1:(length(unique(dt_train_sales_PCA$GRID_ID))-1)){
+  temp_time <- bind_rows(temp_time, YYYYMM_GWR)
+}
+GRID_GWR <- temp
+YYYYMM_GWR <- temp_time
+
+FRANE_timeGEO <- bind_cols(YYYYMM_GWR, GRID_GWR)
+colnames(FRANE_timeGEO) <- c("BS_YR_MON", "GRID_ID")
+```
+
+
+## prepare data 
+```{r}
+dt_train_sales_PCA <- 
+  dt_train_sales_PCA |> 
+  mutate(BS_YR_MON = as.character(BS_YR_MON))
+
+x <- left_join(FRANE_timeGEO, dt_train_sales_PCA)
+
+dt_train_sales_GWR <-
+x |> 
+  mutate_if(is.numeric, ~replace_na(., 0))
+```
+
+### train data set 
+```{r}
+YYYYMM_normal <- c("201901", "201902", "201903", "201904", "201905", "201906", "201907",
+                   "201908", "201909", "201910", "201911", "201912", "202202", "202203",
+                   "202204", "202205", "202206", "202207", "202208", "202209", "202210",
+                   "202211", "202212", "202301")
+
+dt_train_sales_PCA_norm <-
+dt_train_sales_GWR |> 
+  filter(BS_YR_MON %in% YYYYMM_normal)
+dt_train_sales_PCA_norm <-
+dt_train_sales_PCA_norm |> 
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales))
+dt_train_sales_PCA_norm <- inner_join(dt_train_sales_PCA_norm, GRID_GWG)
+```
+### test data set
+```{r}
+YYYYMM_covid <- c("202001", "202002", "202003", "202004", "202005", "202006", "202007",
+                  "202008", "202009", "202010", "202011", "202012", "202101", "202102",
+                  "202103", "202104", "202105", "202106", "202107", "202108", "202109",
+                  "202110", "202111", "202112", "202201")
+
+dt_test_sales_PCA_norm <-
+dt_train_sales_GWR |> 
+  filter(BS_YR_MON %in% YYYYMM_covid) |>
+  group_by(GRID_ID) |> 
+  summarise(AGE_CD = mean(AGE_CD),
+            mean_dist_work = mean(mean_dist_work),
+            RC1_income_use = mean(RC1_income_use),
+            RC2_pop_credit = mean(RC2_pop_credit),
+            RC3_op_shop = mean(RC3_op_shop),
+            RC4_rt_loan_risk = mean(RC4_rt_loan_risk),
+            RC5_cls_shop = mean(RC5_cls_shop),
+            amt_sales = mean(amt_sales))
+dt_test_sales_PCA_norm <- inner_join(dt_test_sales_PCA_norm, GRID_GWG)
+```
+
+## 
+```{r}
+dt_train_sales_PCA_norm <- st_as_sf(dt_train_sales_PCA_norm)
+dt_train_sales_PCA_sp <- as(dt_train_sales_PCA_norm, Class = "Spatial")
+```
+
+```{r}
+formula_gwr <- amt_sales ~ AGE_CD + mean_dist_work + RC1_income_use + RC2_pop_credit + RC3_op_shop +
+                        RC4_rt_loan_risk + RC5_cls_shop
+
+gwr_model2 <- bw.gwr(formula_gwr,
+                      data = dt_train_sales_PCA_sp,
+                      approach = "AIC",
+                      adaptive = T,)
+
+gwr_model2
+```
+
+
+```{r}
+gwr_GWG2 <-gwr.basic(formula_gwr, 
+                     adaptive = T,
+                     data = dt_train_sales_PCA_sp,
+                     bw = gwr_model2)
+gwr_GWG2
+```
+ 
+##
+
+```{r}
+dt_test_sales_PCA_norm_sp <- st_as_sf(dt_test_sales_PCA_norm)
+dt_test_sales_PCA_norm_sp <- as(dt_test_sales_PCA_norm_sp, Class = "Spatial")
+gwr_pred <- gwr.predict(formula_gwr, 
+                     adaptive = T,
+                     data = dt_train_sales_PCA_sp,
+                     predictdata = dt_test_sales_PCA_norm_sp,
+                     bw = gwr_model2)
+gwr_pred
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
